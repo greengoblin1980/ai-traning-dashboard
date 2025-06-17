@@ -1,4 +1,7 @@
+streamlit
+ccxt
 python-binance
-flask
+pandas
+numpy
+requests
 twilio
-schedule
