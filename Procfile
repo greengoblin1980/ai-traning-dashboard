@@ -1,1 +1,1 @@
-web: python3 dashboard_app.py
+web: streamlit run dashboard_app.py --server.port=$PORT
