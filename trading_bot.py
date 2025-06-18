@@ -1,47 +1,43 @@
-import ccxt
-import pandas as pd
-import numpy as np
-from twilio.rest import Client
+import os
+import time
+import requests
+from binance.client import Client
 
-# 🔒 Twilio credentials (usa variabili d’ambiente in produzione!)
-TWILIO_ACCOUNT_SID = "INSERISCI_TWILIO_ACCOUNT_SID"
-TWILIO_AUTH_TOKEN = "INSERISCI_TWILIO_AUTH_TOKEN"
-TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"
-TARGET_WHATSAPP_NUMBER = "whatsapp:+39XXXXXXXXXX"
+# Funzione per inviare notifiche Telegram
+def send_telegram_message(message):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message}
+    try:
+        response = requests.post(url, data=data)
+        response.raise_for_status()
+    except Exception as e:
+        print("Errore invio messaggio Telegram:", e)
 
-client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# Setup client Binance Testnet
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_SECRET_KEY")
+client = Client(api_key, api_secret)
+client.API_URL = 'https://testnet.binance.vision/api'
 
-def send_whatsapp_message(message):
-    client.messages.create(
-        body=message,
-        from_=TWILIO_WHATSAPP_NUMBER,
-        to=TARGET_WHATSAPP_NUMBER
-    )
-
+# Logica semplice di esempio (sostituibile con una AI vera)
 def run_bot():
-    binance = ccxt.binance()
-    symbols = ["BTC/USDT", "ETH/USDT", "BNB/USDT"]
+    try:
+        tickers = client.get_ticker_price()
+        symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+        opportunities = []
 
-    best_symbol = None
-    best_score = -np.inf
+        for symbol in symbols:
+            price = float(next(t['price'] for t in tickers if t['symbol'] == symbol))
+            if price > 100:  # Simulazione: condizione fittizia
+                opportunities.append((symbol, price))
 
-    for symbol in symbols:
-        try:
-            ohlcv = binance.fetch_ohlcv(symbol, timeframe='1m', limit=20)
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-
-            df['sma'] = df['close'].rolling(window=5).mean()
-            score = df['close'].iloc[-1] - df['sma'].iloc[-1]
-
-            if score > best_score:
-                best_score = score
-                best_symbol = symbol
-        except Exception as e:
-            print(f"Errore con {symbol}: {e}")
-
-    if best_symbol:
-        message = f"✅ Il bot suggerisce di operare su: {best_symbol}"
-        print(message)
-        send_whatsapp_message(message)
-    else:
-        send_whatsapp_message("⚠️ Nessuna opportunità rilevata.")
+        if opportunities:
+            best = max(opportunities, key=lambda x: x[1])
+            message = f"💹 Migliore opportunità: {best[0]} a {best[1]}"
+            send_telegram_message(message)
+        else:
+            send_telegram_message("⚠️ Nessuna opportunità rilevata.")
+    except Exception as e:
+        send_telegram_message(f"❌ Errore nel bot: {e}")
